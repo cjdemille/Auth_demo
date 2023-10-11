@@ -21,7 +21,11 @@ app.use(session({
     resave: false, 
     saveUninitialized: false
 
-}))
+})); 
+
+const requireLogin = (req, res, next) =>{
+    return !req.session.user_id ? res.redirect('/login') : next(); 
+}
 
 app.set('view engine' , 'ejs'); 
 app.set('views' , 'views')
@@ -36,12 +40,9 @@ app.get('/register', (req, res) => {
 
 app.post('/register' , async(req, res) => {
     const {password , username } =req.body;
-    const hash = await bcrypt.hash(password, 12); 
-    const user = new User({
-        username, 
-        password: hash
-    })
+    const user = new User({ username, password })
     await user.save(); 
+    req.session.user_id = user._id;
     res.redirect("/")
 })
 
@@ -51,27 +52,26 @@ app.get('/login', (req, res) =>{
 
 app.post('/login' , async(req, res) => {
     const { username , password } = req.body; 
-    const user = await User.findOne({ username }); 
-    const validPW = await bcrypt.compare(password , user.password); 
-    if (validPW){
-        req.session.user_id = user._id;
+    const foundUser = await User.findAndValidate(username, password)
+    if (foundUser){
+        req.session.user_id = foundUser._id;
         res.send("yay welcome");
-
-    } else{
+    }  else{
         res.send('Try again');
     }
-
 })
 
+app.get('/secret', requireLogin , (req, res) => {
+    res.render('secret')
+})
 
+app.get('/topsecret' , requireLogin , (req, res) =>{
+    res.send('top secret'); 
+})
 
-app.get('/secret' ,(req, res) => {
-    if(!req.session.user_id_){
-        res.redirect('/login');
-    } else{
-        res.send('This is a secret!');
-    }
-
+app.post('/logout' , (req, res) =>{
+    req.session.user_id = null; 
+    res.redirect('/login');
 })
 
 app.listen(3000, () => {
